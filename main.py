@@ -13,7 +13,9 @@ bot.remove_command('help')
 
 # ============ CONFIGURATION ============
 # IMPORTANT: Regenerate your token! This one is exposed!
-TOKEN = "YOUR_NEW_TOKEN_HERE"  # REPLACE THIS WITH YOUR NEW TOKEN
+TOKEN = os.getenv('DISCORD_TOKEN')
+
+
 
 # MULTIPLE OWNER IDs - Add as many as you want
 OWNER_IDS = [
